@@ -1,3 +1,132 @@
-fn main() {
-    println!("Hello, world!");
+mod commands;
+mod state;
+use std::{fmt::Display, fs::OpenOptions};
+
+use crate::{
+    commands::{assing_player_to_cottage, set_number_of_players, start_vote},
+    state::State,
+};
+use poise::serenity_prelude::{
+        self as serenity, GuildId,
+        RoleId,
+    };
+use serde::Deserialize;
+use tokio::sync::RwLock;
+
+#[derive(Debug)]
+enum Error {
+    Serenity(#[allow(unused)] poise::serenity_prelude::Error),
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl From<poise::serenity_prelude::Error> for Error {
+    fn from(value: poise::serenity_prelude::Error) -> Self {
+        Error::Serenity(value)
+    }
+}
+type Context<'a> = poise::Context<'a, (Config, RwLock<state::State>), Error>;
+
+#[derive(Deserialize)]
+struct Config {
+    token: String,
+    guild_id: GuildId,
+    storyteller_role: RoleId,
+}
+
+fn get_initial_state() -> state::State {
+    let reader = match OpenOptions::new().read(true).open("state.yaml") {
+        Ok(e) => e,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return State::default(),
+        k => k.unwrap(),
+    };
+    serde_yml::from_reader(reader).unwrap()
+}
+
+#[tokio::main]
+async fn main() {
+    let config: Config =
+        serde_yml::from_reader(OpenOptions::new().read(true).open("config.yaml").unwrap()).unwrap();
+    let state = get_initial_state();
+
+    let intents =
+        serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
+
+    let token = config.token.clone();
+
+    let framework = poise::Framework::<(Config, RwLock<State>), _>::builder()
+        .setup(move |ctx, _, framework| {
+            Box::pin(async move {
+                let commands =
+                    poise::builtins::create_application_commands(&framework.options().commands);
+
+                config.guild_id.set_commands(ctx, commands).await.unwrap();
+                Ok((config, RwLock::new(state)))
+            })
+        })
+        .options(poise::FrameworkOptions {
+            pre_command: |ctx| {
+                Box::pin(async move {
+                    println!(
+                        "In pre_command: {:?}",
+                        ctx.invocation_data::<&str>().await.as_deref()
+                    );
+                })
+            },
+            command_check: Some(|ctx| {
+                Box::pin(async move {
+                    // Global command check is the first callback that's invoked, so let's set the
+                    // data here
+                    println!("Writing invocation data!");
+                    ctx.set_invocation_data("hello").await;
+
+                    println!(
+                        "In global check: {:?}",
+                        ctx.invocation_data::<&str>().await.as_deref()
+                    );
+
+                    Ok(true)
+                })
+            }),
+            post_command: |ctx| {
+                Box::pin(async move {
+                    println!(
+                        "In post_command: {:?}",
+                        ctx.invocation_data::<&str>().await.as_deref()
+                    );
+                })
+            },
+            on_error: |err| {
+                Box::pin(async move {
+                    match err {
+                        poise::FrameworkError::Command {  error, .. } => {
+                            println!("In on_error: {:?}", error);
+                        }
+                        err => poise::builtins::on_error(err).await.unwrap(),
+                    }
+                })
+            },
+
+            commands: vec![
+                start_vote(),
+                set_number_of_players(),
+                assing_player_to_cottage(),
+            ],
+            prefix_options: poise::PrefixFrameworkOptions {
+                prefix: Some("~".into()),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .build();
+
+    let client = serenity::ClientBuilder::new(token, intents)
+        .framework(framework)
+        .await;
+
+    client.unwrap().start().await.unwrap();
 }
