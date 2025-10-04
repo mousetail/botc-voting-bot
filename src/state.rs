@@ -75,7 +75,7 @@ impl State {
     }
 }
 
-pub fn format_vote<'a>(
+pub fn format_vote(
     players: &PlayerMap,
     Vote {
         nominator,
@@ -85,12 +85,10 @@ pub fn format_vote<'a>(
         defense,
         vote_state,
         description,
-
-        message_id: _,
-        channel_id: _,
+        ..
     }: &Vote,
 ) -> String {
-    return format!(
+    format!(
         r"
 {} nominates {}
 
@@ -106,12 +104,12 @@ pub fn format_vote<'a>(
         FormatMention(*nominator),
         FormatMention(*nominee),
         FormatVotes {
-            vote_state: vote_state,
-            players: players,
+            vote_state,
+            players,
             nominee: *nominee,
             clock_hand: *clock_hand
         }
-    );
+    )
 }
 
 pub struct PrintCottages<'a>(pub &'a State);
@@ -167,9 +165,9 @@ impl<'a> Display for FormatVotes<'a> {
             }
 
             let vote_state = self.vote_state.get(&player_id);
-            write!(
+            writeln!(
                 f,
-                "{}: {} {} {}\n",
+                "{}: {} {} {}",
                 i + 1,
                 FormatMention(player_id),
                 match vote_state {
@@ -189,7 +187,7 @@ impl<'a> Display for FormatVotes<'a> {
         }
 
         if let Some(clockhand_player) = clockhand_player {
-            write!(f, "Clockhand on {}\n", FormatMention(clockhand_player))?
+            writeln!(f, "Clockhand on {}", FormatMention(clockhand_player))?
         }
 
         Ok(())

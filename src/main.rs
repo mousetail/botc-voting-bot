@@ -1,19 +1,15 @@
 mod commands;
 mod state;
-use std::{any, fmt::Display, fs::OpenOptions, sync::atomic::AtomicBool};
+use std::{fmt::Display, fs::OpenOptions};
 
 use crate::{
     commands::{assign_player_to_cottage, set_accusation, set_number_of_players, start_vote},
     state::State,
 };
 use commands::{raise_hand, set_defense, vote};
-use poise::{
-    ApplicationContext, Command, framework,
-    serenity_prelude::{
-        self as serenity, CommandInteraction, ComponentInteractionDataKind,
-        CreateInteractionResponseMessage, CreateQuickModal, EditInteractionResponse, EditMessage,
-        GuildId, Interaction, QuickModalResponse, RoleId, futures::lock::Mutex,
-    },
+use poise::serenity_prelude::{
+    self as serenity, ComponentInteractionDataKind, CreateInteractionResponseMessage, EditMessage,
+    GuildId, Interaction, RoleId,
 };
 use serde::Deserialize;
 use state::format_vote;
@@ -76,13 +72,7 @@ async fn main() {
             })
         })
         .options(poise::FrameworkOptions {
-            on_error: |err| {
-                Box::pin(async move {
-                    match err {
-                        err => poise::builtins::on_error(err).await.unwrap(),
-                    }
-                })
-            },
+            on_error: |err| Box::pin(async move { poise::builtins::on_error(err).await.unwrap() }),
             event_handler: |ctx, event, framework, state| {
                 Box::pin(async move { event_handler(ctx, event, framework, state).await })
             },
@@ -120,60 +110,45 @@ async fn event_handler<'a>(
     if let serenity::FullEvent::InteractionCreate {
         interaction: Interaction::Component(component_interaction),
     } = event
+        && let ComponentInteractionDataKind::Button = component_interaction.data.kind
     {
-        if let ComponentInteractionDataKind::Button = component_interaction.data.kind {
-            let up = component_interaction.data.custom_id == "hand_up_button";
-            println!("Received a hand {up} up response");
+        let up = component_interaction.data.custom_id == "hand_up_button";
+        println!("Received a hand {up} up response");
 
-            let mut ok = false;
-            {
-                let State {
-                    players,
-                    current_vote,
-                    ..
-                } = &mut *state.1.write().await;
+        let mut ok = false;
+        {
+            let State {
+                players,
+                current_vote,
+                ..
+            } = &mut *state.1.write().await;
 
-                if let Some(vote) = current_vote {
-                    let v = vote
-                        .vote_state
-                        .entry(component_interaction.user.id)
-                        .or_insert(state::VoteState::None);
+            if let Some(vote) = current_vote {
+                let v = vote
+                    .vote_state
+                    .entry(component_interaction.user.id)
+                    .or_insert(state::VoteState::None);
 
-                    match v {
-                        state::VoteState::Yes | state::VoteState::No => (),
-                        e => {
-                            *e = if up {
-                                state::VoteState::HandRaised
-                            } else {
-                                state::VoteState::HandLowered
-                            }
+                match v {
+                    state::VoteState::Yes | state::VoteState::No => (),
+                    e => {
+                        *e = if up {
+                            state::VoteState::HandRaised
+                        } else {
+                            state::VoteState::HandLowered
                         }
                     }
-
-                    let mut message = ctx
-                        .http
-                        .get_message(vote.channel_id, vote.message_id)
-                        .await?;
-                    message
-                        .edit(ctx, EditMessage::new().content(format_vote(players, vote)))
-                        .await?;
-
-                    ok = true;
-                    component_interaction
-                        .create_response(
-                            ctx,
-                            serenity::CreateInteractionResponse::UpdateMessage(
-                                CreateInteractionResponseMessage::new(),
-                            ),
-                        )
-                        .await?;
-                    println!("Done!");
                 }
-            }
 
-            state.1.read().await.save();
+                let mut message = ctx
+                    .http
+                    .get_message(vote.channel_id, vote.message_id)
+                    .await?;
+                message
+                    .edit(ctx, EditMessage::new().content(format_vote(players, vote)))
+                    .await?;
 
-            if !ok {
+                ok = true;
                 component_interaction
                     .create_response(
                         ctx,
@@ -183,6 +158,19 @@ async fn event_handler<'a>(
                     )
                     .await?;
             }
+        }
+
+        state.1.read().await.save();
+
+        if !ok {
+            component_interaction
+                .create_response(
+                    ctx,
+                    serenity::CreateInteractionResponse::UpdateMessage(
+                        CreateInteractionResponseMessage::new(),
+                    ),
+                )
+                .await?;
         }
     }
 
