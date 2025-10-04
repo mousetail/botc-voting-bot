@@ -6,7 +6,7 @@ use crate::{
     commands::{assign_player_to_cottage, set_accusation, set_number_of_players, start_vote},
     state::State,
 };
-use commands::set_defense;
+use commands::{raise_hand, set_defense, vote};
 use poise::serenity_prelude::{self as serenity, GuildId, RoleId};
 use serde::Deserialize;
 use tokio::sync::RwLock;
@@ -82,6 +82,8 @@ async fn main() {
                 assign_player_to_cottage(),
                 set_accusation(),
                 set_defense(),
+                raise_hand(),
+                vote(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("~".into()),

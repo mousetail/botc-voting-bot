@@ -1,8 +1,22 @@
-use std::{collections::HashMap, fmt::Display, fs::OpenOptions};
+use std::{collections::HashMap, fmt::Display, fs::OpenOptions, num::NonZeroU32};
 
 use poise::serenity_prelude::{ChannelId, MessageId, UserId};
 use serde::{Deserialize, Serialize};
 
+#[derive(Hash, Serialize, Deserialize, PartialEq, Eq, Copy, Clone)]
+pub struct CottageNumber(pub NonZeroU32);
+
+impl CottageNumber {
+    pub fn new(value: u32) -> Option<CottageNumber> {
+        Some(CottageNumber(NonZeroU32::new(value)?))
+    }
+
+    pub fn next(self, number_of_players: u32) -> CottageNumber {
+        CottageNumber::new(self.0.get() % number_of_players + 1).unwrap()
+    }
+}
+
+pub type PlayerMap = HashMap<CottageNumber, (UserId, ChannelId)>;
 
 #[derive(Serialize, Deserialize)]
 pub enum VoteState {
@@ -29,7 +43,7 @@ pub struct Vote {
     pub accusation: String,
     pub defense: String,
 
-    pub clock_hand: u32,
+    pub clock_hand: CottageNumber,
 
     pub vote_state: HashMap<UserId, VoteState>,
 
@@ -41,7 +55,7 @@ pub struct Vote {
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct State {
-    pub players: HashMap<u32, (UserId, ChannelId)>,
+    pub players: PlayerMap,
     pub number_of_players: u32,
     pub current_vote: Option<Vote>,
 }
@@ -62,6 +76,7 @@ impl State {
 }
 
 pub fn format_vote<'a>(
+    players: &PlayerMap,
     Vote {
         nominator,
         nominee,
@@ -79,19 +94,23 @@ pub fn format_vote<'a>(
         r"
 {} nominates {}
 
-Accusation:
-
+**Accusation:**
 > {accusation}
-
-Defense:
-
+**Defense:**
 > {defense}
 
+{}
 {description}
 
     ",
         FormatMention(*nominator),
-        FormatMention(*nominee)
+        FormatMention(*nominee),
+        FormatVotes {
+            vote_state: vote_state,
+            players: players,
+            nominee: *nominee,
+            clock_hand: *clock_hand
+        }
     );
 }
 
@@ -101,13 +120,78 @@ impl<'a> Display for PrintCottages<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for i in 1..self.0.number_of_players + 1 {
             write!(f, "{i}: ")?;
-            match self.0.players.get(&i) {
+            match self.0.players.get(&CottageNumber::new(i).unwrap()) {
                 Some((player, channel)) => {
                     writeln!(f, "{} <#{}>", FormatMention(*player), channel)?
                 }
                 None => writeln!(f, "unassigned")?,
             };
         }
+        Ok(())
+    }
+}
+
+struct FormatVotes<'a> {
+    vote_state: &'a HashMap<UserId, VoteState>,
+    players: &'a PlayerMap,
+    nominee: UserId,
+    clock_hand: CottageNumber,
+}
+
+impl<'a> Display for FormatVotes<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let start_player_index = self
+            .players
+            .iter()
+            .find(|(_, (user_id, _))| *user_id == self.nominee);
+        let Some(start_player_index) = start_player_index.map(|i| *i.0) else {
+            write!(f, "[Starting Player Not On Table]")?;
+            return Ok(());
+        };
+
+        let number_of_players = self.players.len() as u32;
+        let mut clockhand_player = None;
+
+        for i in 0..number_of_players {
+            let cottage =
+                CottageNumber::new((i + start_player_index.0.get()) % number_of_players + 1)
+                    .unwrap();
+
+            let Some(player_id) = self.players.get(&cottage).map(|i| i.0) else {
+                write!(f, "[Unkown Player]")?;
+                continue;
+            };
+
+            if cottage == self.clock_hand {
+                clockhand_player = Some(player_id)
+            }
+
+            let vote_state = self.vote_state.get(&player_id);
+            write!(
+                f,
+                "{}: {} {} {}\n",
+                i + 1,
+                FormatMention(player_id),
+                match vote_state {
+                    None => " ",
+                    Some(VoteState::HandRaised) => "🙋",
+                    Some(VoteState::HandLowered) => "🙅‍♂️",
+                    Some(VoteState::Yes) => "✅",
+                    Some(VoteState::No) => "❌",
+                    _ => "?",
+                },
+                if self.clock_hand == cottage {
+                    "⬅️"
+                } else {
+                    ""
+                }
+            )?;
+        }
+
+        if let Some(clockhand_player) = clockhand_player {
+            write!(f, "Clockhand on {}\n", FormatMention(clockhand_player))?
+        }
+
         Ok(())
     }
 }

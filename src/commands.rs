@@ -9,7 +9,9 @@ use poise::{
 
 use crate::{
     Context, Error,
-    state::{FormatMention, PrintCottages, Vote, format_vote},
+    state::{
+        CottageNumber, FormatMention, PlayerMap, PrintCottages, State, Vote, VoteState, format_vote,
+    },
 };
 
 async fn is_storyteller(ctx: Context<'_>) -> Result<bool, Error> {
@@ -33,12 +35,18 @@ async fn is_storyteller(ctx: Context<'_>) -> Result<bool, Error> {
 
 async fn mutate_active_vote<T>(
     ctx: Context<'_>,
-    callback: impl AsyncFnOnce(&mut Vote) -> Result<T, Error>,
+    callback: impl FnOnce(&mut PlayerMap, &mut Vote) -> Result<T, Error>,
 ) -> Result<T, Error> {
     let (_config, state) = ctx.data();
 
     let mut state = state.write().await;
-    let vote = match &mut state.current_vote {
+    let State {
+        players,
+        current_vote,
+        ..
+    } = &mut *state;
+
+    let vote = match current_vote {
         Some(e) => e,
         None => {
             ctx.send(
@@ -51,7 +59,15 @@ async fn mutate_active_vote<T>(
         }
     };
 
-    let result = callback(vote).await?;
+    let result = callback(players, vote)?;
+
+    let mut message = ctx
+        .http()
+        .get_message(vote.channel_id, vote.message_id)
+        .await?;
+    message
+        .edit(ctx, EditMessage::new().content(format_vote(players, vote)))
+        .await?;
 
     state.save();
 
@@ -83,9 +99,10 @@ pub async fn assign_player_to_cottage(
     let (_config, state) = ctx.data();
 
     let mut state = state.write().await;
-    state
-        .players
-        .insert(cottage_number, (player_id, channel_id));
+    state.players.insert(
+        CottageNumber::new(cottage_number).unwrap(),
+        (player_id, channel_id),
+    );
     state.save();
     let state = state.downgrade();
 
@@ -96,16 +113,8 @@ pub async fn assign_player_to_cottage(
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
 pub async fn set_defense(ctx: Context<'_>, defense: String) -> Result<(), Error> {
-    mutate_active_vote(ctx, async move |vote| -> Result<(), Error> {
+    mutate_active_vote(ctx, move |_, vote| -> Result<(), Error> {
         vote.defense = defense;
-
-        let mut message = ctx
-            .http()
-            .get_message(vote.channel_id, vote.message_id)
-            .await?;
-        message
-            .edit(ctx, EditMessage::new().content(format_vote(vote)))
-            .await?;
 
         Ok(())
     })
@@ -125,17 +134,8 @@ pub async fn set_defense(ctx: Context<'_>, defense: String) -> Result<(), Error>
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
 pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), Error> {
-    mutate_active_vote(ctx, async move |vote| -> Result<(), Error> {
+    mutate_active_vote(ctx, move |_, vote| -> Result<(), Error> {
         vote.accusation = accusation;
-
-        let mut message = ctx
-            .http()
-            .get_message(vote.channel_id, vote.message_id)
-            .await?;
-        message
-            .edit(ctx, EditMessage::new().content(format_vote(vote)))
-            .await?;
-
         Ok(())
     })
     .await?;
@@ -151,6 +151,67 @@ pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), 
 }
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
+pub async fn raise_hand(
+    ctx: Context<'_>,
+    player_id: UserId,
+    hand_state: bool,
+) -> Result<(), Error> {
+    let success = mutate_active_vote(ctx, |_, vote| {
+        let entry = vote.vote_state.entry(player_id).or_insert(VoteState::None);
+
+        let success = match entry {
+            VoteState::Yes | VoteState::No => false,
+            e => {
+                *e = if hand_state {
+                    VoteState::HandRaised
+                } else {
+                    VoteState::HandLowered
+                };
+                true
+            }
+        };
+
+        Ok(success)
+    })
+    .await?;
+
+    ctx.send(CreateReply::default().ephemeral(true).content(if !success {
+        "Vote has already passed this player"
+    } else if hand_state {
+        "Hand Raised"
+    } else {
+        "Hand Lowered"
+    }))
+    .await?;
+
+    Ok(())
+}
+
+#[poise::command(prefix_command, slash_command, check = "is_storyteller")]
+pub async fn vote(ctx: Context<'_>, hand_state: bool) -> Result<(), Error> {
+    mutate_active_vote(ctx, |players, vote| {
+        vote.vote_state.insert(
+            players.get(&vote.clock_hand).ok_or(Error::Silent)?.0,
+            if hand_state {
+                VoteState::Yes
+            } else {
+                VoteState::No
+            },
+        );
+
+        vote.clock_hand = vote.clock_hand.next(players.len() as u32);
+
+        Ok(())
+    })
+    .await?;
+
+    ctx.send(CreateReply::default().ephemeral(true).content("Voted"))
+        .await?;
+
+    Ok(())
+}
+
+#[poise::command(prefix_command, slash_command, check = "is_storyteller")]
 pub async fn start_vote(
     ctx: Context<'_>,
     #[description = "Whoever does the nominatino"] nominator: UserId,
@@ -161,7 +222,7 @@ pub async fn start_vote(
 
     let state_read = state.read().await;
     let clockhand = match state_read.players.iter().find(|(_, (b, _))| *b == nominee) {
-        Some(e) => e.0 % state_read.number_of_players + 1,
+        Some((cottage_number, _)) => cottage_number.next(state_read.players.len() as u32),
         None => {
             ctx.reply("Nominee is not assigned to a cottage!").await?;
             return Ok(());
