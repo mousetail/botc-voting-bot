@@ -3,13 +3,11 @@ mod state;
 use std::{fmt::Display, fs::OpenOptions};
 
 use crate::{
-    commands::{assing_player_to_cottage, set_number_of_players, start_vote},
+    commands::{assing_player_to_cottage, set_accusation, set_number_of_players, start_vote},
     state::State,
 };
-use poise::serenity_prelude::{
-        self as serenity, GuildId,
-        RoleId,
-    };
+use commands::set_defense;
+use poise::serenity_prelude::{self as serenity, GuildId, RoleId};
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
@@ -103,7 +101,7 @@ async fn main() {
             on_error: |err| {
                 Box::pin(async move {
                     match err {
-                        poise::FrameworkError::Command {  error, .. } => {
+                        poise::FrameworkError::Command { error, .. } => {
                             println!("In on_error: {:?}", error);
                         }
                         err => poise::builtins::on_error(err).await.unwrap(),
@@ -115,6 +113,8 @@ async fn main() {
                 start_vote(),
                 set_number_of_players(),
                 assing_player_to_cottage(),
+                set_accusation(),
+                set_defense(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("~".into()),

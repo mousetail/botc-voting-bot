@@ -68,10 +68,12 @@ pub async fn assing_player_to_cottage(
 }
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
-pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), Error> {
+pub async fn set_defense(ctx: Context<'_>, defense: String) -> Result<(), Error> {
     let (_config, state) = ctx.data();
 
+    println!("About to get state");
     let mut state = state.write().await;
+    println!("Got state");
     let vote = match &mut state.current_vote {
         Some(e) => e,
         None => {
@@ -84,6 +86,50 @@ pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), 
             return Ok(());
         }
     };
+    println!("Got vote");
+
+    vote.defense = defense;
+
+    ctx.send(
+        CreateReply::default()
+            .ephemeral(true)
+            .content("Defense Set"),
+    )
+    .await?;
+
+    let mut message = ctx
+        .http()
+        .get_message(vote.channel_id, vote.message_id)
+        .await?;
+    message
+        .edit(ctx, EditMessage::new().content(format_vote(vote)))
+        .await?;
+
+    state.save();
+
+    Ok(())
+}
+
+#[poise::command(prefix_command, slash_command, check = "is_storyteller")]
+pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), Error> {
+    let (_config, state) = ctx.data();
+
+    println!("About to get state");
+    let mut state = state.write().await;
+    println!("Got state");
+    let vote = match &mut state.current_vote {
+        Some(e) => e,
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .ephemeral(true)
+                    .content("There is no currently active vote"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    println!("Got vote");
 
     vote.accusation = accusation;
 
@@ -92,7 +138,7 @@ pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), 
             .ephemeral(true)
             .content("Accusation Set"),
     )
-    .await;
+    .await?;
 
     let mut message = ctx
         .http()
@@ -100,7 +146,9 @@ pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), 
         .await?;
     message
         .edit(ctx, EditMessage::new().content(format_vote(vote)))
-        .await;
+        .await?;
+
+    state.save();
 
     Ok(())
 }
@@ -118,10 +166,11 @@ pub async fn start_vote(
     let clockhand = match state_read.players.iter().find(|(_, (b, _))| *b == nominee) {
         Some(e) => e.0 % state_read.number_of_players + 1,
         None => {
-            ctx.reply("Nominee is not assigned to a cottage!").await;
+            ctx.reply("Nominee is not assigned to a cottage!").await?;
             return Ok(());
         }
     };
+    drop(state_read);
 
     let reply_handle = ctx
         .send(
@@ -158,7 +207,10 @@ pub async fn start_vote(
 
     let mut state = state.write().await;
     state.current_vote = Some(vote);
+    state.save();
     drop(state);
+
+    println!("State dropped, and saved");
 
     Ok(())
 }
