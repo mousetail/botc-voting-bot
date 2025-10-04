@@ -7,9 +7,12 @@ use crate::{
     state::State,
 };
 use commands::{raise_hand, set_defense, vote};
-use poise::serenity_prelude::{
-    self as serenity, ComponentInteractionDataKind, CreateInteractionResponseMessage, EditMessage,
-    GuildId, Interaction, RoleId,
+use poise::{
+    FrameworkError,
+    serenity_prelude::{
+        self as serenity, ComponentInteractionDataKind, CreateInteractionResponseMessage,
+        EditMessage, GuildId, Interaction, RoleId,
+    },
 };
 use serde::Deserialize;
 use state::format_vote;
@@ -74,8 +77,10 @@ async fn main() {
         .options(poise::FrameworkOptions {
             on_error: |err| {
                 Box::pin(async move {
-                    println!("Got error: {err:?}");
-                    poise::builtins::on_error(err).await.unwrap()
+                    match err {
+                        FrameworkError::CommandCheckFailed { .. } => (),
+                        err => poise::builtins::on_error(err).await.unwrap(),
+                    }
                 })
             },
             event_handler: |ctx, event, framework, state| {
@@ -125,6 +130,7 @@ async fn event_handler<'a>(
             let State {
                 players,
                 current_vote,
+                number_of_players,
                 ..
             } = &mut *state.1.write().await;
 
@@ -150,7 +156,10 @@ async fn event_handler<'a>(
                     .get_message(vote.channel_id, vote.message_id)
                     .await?;
                 message
-                    .edit(ctx, EditMessage::new().content(format_vote(players, vote)))
+                    .edit(
+                        ctx,
+                        EditMessage::new().content(format_vote(players, vote, *number_of_players)),
+                    )
                     .await?;
 
                 ok = true;

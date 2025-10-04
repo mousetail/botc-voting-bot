@@ -87,6 +87,7 @@ pub fn format_vote(
         description,
         ..
     }: &Vote,
+    number_of_players: u32,
 ) -> String {
     format!(
         r"
@@ -107,7 +108,8 @@ pub fn format_vote(
             vote_state,
             players,
             nominee: *nominee,
-            clock_hand: *clock_hand
+            clock_hand: *clock_hand,
+            number_of_players
         }
     )
 }
@@ -134,6 +136,7 @@ struct FormatVotes<'a> {
     players: &'a PlayerMap,
     nominee: UserId,
     clock_hand: CottageNumber,
+    number_of_players: u32,
 }
 
 impl<'a> Display for FormatVotes<'a> {
@@ -156,7 +159,7 @@ impl<'a> Display for FormatVotes<'a> {
                     .unwrap();
 
             let Some(player_id) = self.players.get(&cottage).map(|i| i.0) else {
-                write!(f, "[Unkown Player]")?;
+                write!(f, "[Empty Cottage]\n")?;
                 continue;
             };
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use poise::{
     CreateReply,
@@ -43,6 +43,7 @@ async fn mutate_active_vote<T>(
     let State {
         players,
         current_vote,
+        number_of_players,
         ..
     } = &mut *state;
 
@@ -66,7 +67,10 @@ async fn mutate_active_vote<T>(
         .get_message(vote.channel_id, vote.message_id)
         .await?;
     message
-        .edit(ctx, EditMessage::new().content(format_vote(players, vote)))
+        .edit(
+            ctx,
+            EditMessage::new().content(format_vote(players, vote, *number_of_players)),
+        )
         .await?;
 
     state.save();
@@ -106,11 +110,20 @@ pub async fn assign_player_to_cottage(
     state.save();
     let state = state.downgrade();
 
-    ctx.reply(format!(
-        "**Current Cottage Assignment**:\n{}",
-        PrintCottages(&state)
-    ))
-    .await?;
+    // We first send a blank message then edit it to avoid pinging every player
+    let message = ctx
+        .reply(format!("**Current Cottage Assignment**:\n",))
+        .await?;
+
+    tokio::time::sleep(Duration::from_millis(250)).await;
+
+    message.edit(
+        ctx,
+        CreateReply::default().content(format!(
+            "**Current Cottage Assignment**:\n{}",
+            PrintCottages(&state)
+        )),
+    );
 
     Ok(())
 }
