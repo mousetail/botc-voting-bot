@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Display, fs::OpenOptions, num::NonZeroU32};
 use poise::serenity_prelude::{ChannelId, MessageId, UserId};
 use serde::{Deserialize, Serialize};
 
-#[derive(Hash, Serialize, Deserialize, PartialEq, Eq, Copy, Clone)]
+#[derive(Hash, Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
 pub struct CottageNumber(pub NonZeroU32);
 
 impl CottageNumber {
@@ -18,7 +18,7 @@ impl CottageNumber {
 
 pub type PlayerMap = HashMap<CottageNumber, (UserId, ChannelId)>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum VoteState {
     None,
     HandRaised,
@@ -35,7 +35,7 @@ impl Display for FormatMention {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Vote {
     pub nominator: UserId,
     pub nominee: UserId,
@@ -53,7 +53,7 @@ pub struct Vote {
     pub channel_id: ChannelId,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct State {
     pub players: PlayerMap,
     pub number_of_players: u32,

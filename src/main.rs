@@ -34,7 +34,7 @@ impl From<poise::serenity_prelude::Error> for Error {
 }
 type Context<'a> = poise::Context<'a, (Config, RwLock<state::State>), Error>;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct Config {
     token: String,
     guild_id: GuildId,
@@ -72,7 +72,12 @@ async fn main() {
             })
         })
         .options(poise::FrameworkOptions {
-            on_error: |err| Box::pin(async move { poise::builtins::on_error(err).await.unwrap() }),
+            on_error: |err| {
+                Box::pin(async move {
+                    println!("Got error: {err:?}");
+                    poise::builtins::on_error(err).await.unwrap()
+                })
+            },
             event_handler: |ctx, event, framework, state| {
                 Box::pin(async move { event_handler(ctx, event, framework, state).await })
             },
