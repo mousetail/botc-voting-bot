@@ -106,7 +106,11 @@ pub async fn assign_player_to_cottage(
     state.save();
     let state = state.downgrade();
 
-    ctx.reply(format!("{}", PrintCottages(&state))).await?;
+    ctx.reply(format!(
+        "**Current Cottage Assignment**:\n{}",
+        PrintCottages(&state)
+    ))
+    .await?;
 
     Ok(())
 }
