@@ -31,6 +31,33 @@ async fn is_storyteller(ctx: Context<'_>) -> Result<bool, Error> {
     }
 }
 
+async fn mutate_active_vote<T>(
+    ctx: Context<'_>,
+    callback: impl AsyncFnOnce(&mut Vote) -> Result<T, Error>,
+) -> Result<T, Error> {
+    let (_config, state) = ctx.data();
+
+    let mut state = state.write().await;
+    let vote = match &mut state.current_vote {
+        Some(e) => e,
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .ephemeral(true)
+                    .content("There is no currently active vote"),
+            )
+            .await?;
+            return Err(Error::Silent);
+        }
+    };
+
+    let result = callback(vote).await?;
+
+    state.save();
+
+    Ok(result)
+}
+
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
 pub async fn set_number_of_players(ctx: Context<'_>, number_of_players: u32) -> Result<(), Error> {
     let (_config, state) = ctx.data();
@@ -47,7 +74,7 @@ pub async fn set_number_of_players(ctx: Context<'_>, number_of_players: u32) -> 
 }
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
-pub async fn assing_player_to_cottage(
+pub async fn assign_player_to_cottage(
     ctx: Context<'_>,
     cottage_number: u32,
     player_id: UserId,
@@ -69,26 +96,20 @@ pub async fn assing_player_to_cottage(
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
 pub async fn set_defense(ctx: Context<'_>, defense: String) -> Result<(), Error> {
-    let (_config, state) = ctx.data();
+    mutate_active_vote(ctx, async move |vote| -> Result<(), Error> {
+        vote.defense = defense;
 
-    println!("About to get state");
-    let mut state = state.write().await;
-    println!("Got state");
-    let vote = match &mut state.current_vote {
-        Some(e) => e,
-        None => {
-            ctx.send(
-                CreateReply::default()
-                    .ephemeral(true)
-                    .content("There is no currently active vote"),
-            )
+        let mut message = ctx
+            .http()
+            .get_message(vote.channel_id, vote.message_id)
             .await?;
-            return Ok(());
-        }
-    };
-    println!("Got vote");
+        message
+            .edit(ctx, EditMessage::new().content(format_vote(vote)))
+            .await?;
 
-    vote.defense = defense;
+        Ok(())
+    })
+    .await?;
 
     ctx.send(
         CreateReply::default()
@@ -97,58 +118,34 @@ pub async fn set_defense(ctx: Context<'_>, defense: String) -> Result<(), Error>
     )
     .await?;
 
-    let mut message = ctx
-        .http()
-        .get_message(vote.channel_id, vote.message_id)
-        .await?;
-    message
-        .edit(ctx, EditMessage::new().content(format_vote(vote)))
-        .await?;
-
-    state.save();
+    //state.save();
 
     Ok(())
 }
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
 pub async fn set_accusation(ctx: Context<'_>, accusation: String) -> Result<(), Error> {
-    let (_config, state) = ctx.data();
+    mutate_active_vote(ctx, async move |vote| -> Result<(), Error> {
+        vote.accusation = accusation;
 
-    println!("About to get state");
-    let mut state = state.write().await;
-    println!("Got state");
-    let vote = match &mut state.current_vote {
-        Some(e) => e,
-        None => {
-            ctx.send(
-                CreateReply::default()
-                    .ephemeral(true)
-                    .content("There is no currently active vote"),
-            )
+        let mut message = ctx
+            .http()
+            .get_message(vote.channel_id, vote.message_id)
             .await?;
-            return Ok(());
-        }
-    };
-    println!("Got vote");
+        message
+            .edit(ctx, EditMessage::new().content(format_vote(vote)))
+            .await?;
 
-    vote.accusation = accusation;
+        Ok(())
+    })
+    .await?;
 
     ctx.send(
         CreateReply::default()
             .ephemeral(true)
-            .content("Accusation Set"),
+            .content("Defense Set"),
     )
     .await?;
-
-    let mut message = ctx
-        .http()
-        .get_message(vote.channel_id, vote.message_id)
-        .await?;
-    message
-        .edit(ctx, EditMessage::new().content(format_vote(vote)))
-        .await?;
-
-    state.save();
 
     Ok(())
 }

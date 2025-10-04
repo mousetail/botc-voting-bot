@@ -3,7 +3,7 @@ mod state;
 use std::{fmt::Display, fs::OpenOptions};
 
 use crate::{
-    commands::{assing_player_to_cottage, set_accusation, set_number_of_players, start_vote},
+    commands::{assign_player_to_cottage, set_accusation, set_number_of_players, start_vote},
     state::State,
 };
 use commands::set_defense;
@@ -14,6 +14,7 @@ use tokio::sync::RwLock;
 #[derive(Debug)]
 enum Error {
     Serenity(#[allow(unused)] poise::serenity_prelude::Error),
+    Silent,
 }
 
 impl Display for Error {
@@ -67,43 +68,9 @@ async fn main() {
             })
         })
         .options(poise::FrameworkOptions {
-            pre_command: |ctx| {
-                Box::pin(async move {
-                    println!(
-                        "In pre_command: {:?}",
-                        ctx.invocation_data::<&str>().await.as_deref()
-                    );
-                })
-            },
-            command_check: Some(|ctx| {
-                Box::pin(async move {
-                    // Global command check is the first callback that's invoked, so let's set the
-                    // data here
-                    println!("Writing invocation data!");
-                    ctx.set_invocation_data("hello").await;
-
-                    println!(
-                        "In global check: {:?}",
-                        ctx.invocation_data::<&str>().await.as_deref()
-                    );
-
-                    Ok(true)
-                })
-            }),
-            post_command: |ctx| {
-                Box::pin(async move {
-                    println!(
-                        "In post_command: {:?}",
-                        ctx.invocation_data::<&str>().await.as_deref()
-                    );
-                })
-            },
             on_error: |err| {
                 Box::pin(async move {
                     match err {
-                        poise::FrameworkError::Command { error, .. } => {
-                            println!("In on_error: {:?}", error);
-                        }
                         err => poise::builtins::on_error(err).await.unwrap(),
                     }
                 })
@@ -112,7 +79,7 @@ async fn main() {
             commands: vec![
                 start_vote(),
                 set_number_of_players(),
-                assing_player_to_cottage(),
+                assign_player_to_cottage(),
                 set_accusation(),
                 set_defense(),
             ],
