@@ -150,7 +150,7 @@ impl<'a> Display for FormatVotes<'a> {
             return Ok(());
         };
 
-        let number_of_players = self.players.len() as u32;
+        let number_of_players = self.number_of_players;
         let mut clockhand_player = None;
 
         for i in 0..number_of_players {

@@ -117,13 +117,15 @@ pub async fn assign_player_to_cottage(
 
     tokio::time::sleep(Duration::from_millis(250)).await;
 
-    message.edit(
-        ctx,
-        CreateReply::default().content(format!(
-            "**Current Cottage Assignment**:\n{}",
-            PrintCottages(&state)
-        )),
-    );
+    message
+        .edit(
+            ctx,
+            CreateReply::default().content(format!(
+                "**Current Cottage Assignment**:\n{}",
+                PrintCottages(&state)
+            )),
+        )
+        .await?;
 
     Ok(())
 }
