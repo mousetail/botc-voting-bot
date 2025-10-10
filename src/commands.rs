@@ -103,6 +103,9 @@ pub async fn assign_player_to_cottage(
     let (_config, state) = ctx.data();
 
     let mut state = state.write().await;
+    state
+        .players
+        .retain(|_, (user_id, _channel_id)| *user_id != player_id);
     state.players.insert(
         CottageNumber::new(cottage_number).unwrap(),
         (player_id, channel_id),
