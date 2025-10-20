@@ -241,7 +241,7 @@ pub async fn start_vote(
     #[description = "Whoever gets nominated"] nominee: UserId,
     #[description = "eg. \"It will take 5 to tie, 6 to execute\""] description: String,
 ) -> Result<(), Error> {
-    ctx.defer_ephemeral().await?;
+    ctx.defer().await?;
     let (config, state) = ctx.data();
 
     let state_read = state.read().await;
