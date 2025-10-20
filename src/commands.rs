@@ -10,7 +10,8 @@ use poise::{
 use crate::{
     Context, Error,
     state::{
-        CottageNumber, FormatMention, PlayerMap, PrintCottages, State, Vote, VoteState, format_vote,
+        CottageNumber, DeadState, FormatMention, PlayerMap, PrintCottages, State, Vote, VoteState,
+        format_vote,
     },
 };
 
@@ -240,9 +241,33 @@ pub async fn start_vote(
     #[description = "Whoever gets nominated"] nominee: UserId,
     #[description = "eg. \"It will take 5 to tie, 6 to execute\""] description: String,
 ) -> Result<(), Error> {
-    let (_config, state) = ctx.data();
+    ctx.defer_ephemeral().await?;
+    let (config, state) = ctx.data();
 
     let state_read = state.read().await;
+
+    let mut dead_status = HashMap::<UserId, DeadState>::new();
+
+    let Some(guild) = ctx.guild().map(|i| i.id.clone()) else {
+        return Err(Error::Silent);
+    };
+    for (user_id, _) in state_read.players.values() {
+        let user = guild.member(ctx, user_id).await?;
+        let is_dead = user.roles.contains(&config.dead_role);
+        let has_dead_vote = user.roles.contains(&config.ghost_vote_available_role);
+
+        dead_status.insert(
+            *user_id,
+            if has_dead_vote {
+                DeadState::DeadVoteAvailable
+            } else if is_dead {
+                DeadState::DeadVoteUsed
+            } else {
+                DeadState::Alive
+            },
+        );
+    }
+
     let clockhand = match state_read.players.iter().find(|(_, (b, _))| *b == nominee) {
         Some((cottage_number, _)) => cottage_number.next(state_read.players.len() as u32),
         None => {
@@ -281,6 +306,7 @@ pub async fn start_vote(
         defense: String::new(),
         clock_hand: clockhand,
         vote_state: HashMap::new(),
+        dead_state: dead_status,
         message_id: message.id,
         channel_id: message.channel_id,
     };

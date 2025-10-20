@@ -42,6 +42,8 @@ struct Config {
     token: String,
     guild_id: GuildId,
     storyteller_role: RoleId,
+    dead_role: RoleId,
+    ghost_vote_available_role: RoleId,
 }
 
 fn get_initial_state() -> state::State {

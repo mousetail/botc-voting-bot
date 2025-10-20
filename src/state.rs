@@ -27,6 +27,13 @@ pub enum VoteState {
     No,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub enum DeadState {
+    Alive,
+    DeadVoteAvailable,
+    DeadVoteUsed,
+}
+
 pub struct FormatMention(pub UserId);
 
 impl Display for FormatMention {
@@ -46,6 +53,8 @@ pub struct Vote {
     pub clock_hand: CottageNumber,
 
     pub vote_state: HashMap<UserId, VoteState>,
+    #[serde(default)]
+    pub dead_state: HashMap<UserId, DeadState>,
 
     pub description: String,
 
@@ -85,6 +94,7 @@ pub fn format_vote(
         defense,
         vote_state,
         description,
+        dead_state,
         ..
     }: &Vote,
     number_of_players: u32,
@@ -109,7 +119,8 @@ pub fn format_vote(
             players,
             nominee: *nominee,
             clock_hand: *clock_hand,
-            number_of_players
+            number_of_players,
+            dead_state
         }
     )
 }
@@ -133,6 +144,7 @@ impl<'a> Display for PrintCottages<'a> {
 
 struct FormatVotes<'a> {
     vote_state: &'a HashMap<UserId, VoteState>,
+    dead_state: &'a HashMap<UserId, DeadState>,
     players: &'a PlayerMap,
     nominee: UserId,
     clock_hand: CottageNumber,
@@ -168,11 +180,17 @@ impl<'a> Display for FormatVotes<'a> {
             }
 
             let vote_state = self.vote_state.get(&player_id);
+            let dead_state = self.dead_state.get(&player_id).unwrap_or(&DeadState::Alive);
             writeln!(
                 f,
-                "{}: {} {} {}",
+                "{}: {}{} {} {}",
                 i + 1,
                 FormatMention(player_id),
+                match dead_state {
+                    DeadState::Alive => "",
+                    DeadState::DeadVoteAvailable => " (Dead)",
+                    DeadState::DeadVoteUsed => " (Dead Vote Used)",
+                },
                 match vote_state {
                     None => " ",
                     Some(VoteState::HandRaised) => "🙋",
