@@ -147,6 +147,11 @@ async fn event_handler<'a>(
                 &new_message.author,
                 new_message.channel_id,
                 &new_message.thread,
+                new_message
+                    .attachments
+                    .iter()
+                    .map(|i| &i.url)
+                    .collect::<Vec<_>>(),
             ))
             .unwrap();
             value.write_all(&message).unwrap();
@@ -186,6 +191,59 @@ async fn event_handler<'a>(
                 channel_id,
                 deleted_message_id,
                 guild_id,
+            ))
+            .unwrap();
+            value.write_all(&message).unwrap();
+        }
+        serenity::FullEvent::ReactionAdd { add_reaction } => {
+            let mut value = state.2.lock().await;
+
+            let message = serde_json::to_vec(&(
+                "reaction_add",
+                std::time::SystemTime::now(),
+                add_reaction.channel_id,
+                &add_reaction.emoji,
+                add_reaction.message_id,
+                add_reaction.user_id,
+            ))
+            .unwrap();
+            value.write_all(&message).unwrap();
+        }
+        serenity::FullEvent::ReactionRemove { removed_reaction } => {
+            let mut value = state.2.lock().await;
+
+            let message = serde_json::to_vec(&(
+                "reaction_remove",
+                std::time::SystemTime::now(),
+                removed_reaction.channel_id,
+                &removed_reaction.emoji,
+                removed_reaction.message_id,
+                removed_reaction.user_id,
+            ))
+            .unwrap();
+            value.write_all(&message).unwrap();
+        }
+        serenity::FullEvent::ThreadCreate { thread } => {
+            let mut value = state.2.lock().await;
+
+            let message = serde_json::to_vec(&(
+                "thread_create",
+                std::time::SystemTime::now(),
+                thread.id,
+                &thread.thread_metadata,
+            ))
+            .unwrap();
+            value.write_all(&message).unwrap();
+        }
+        serenity::FullEvent::ThreadMemberUpdate { thread_member } => {
+            let mut value = state.2.lock().await;
+
+            let message = serde_json::to_vec(&(
+                "thread_member_update",
+                std::time::SystemTime::now(),
+                thread_member.id,
+                thread_member.user_id,
+                thread_member.inner.join_timestamp,
             ))
             .unwrap();
             value.write_all(&message).unwrap();
