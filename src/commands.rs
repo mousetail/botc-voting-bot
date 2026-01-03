@@ -38,7 +38,7 @@ async fn mutate_active_vote<T>(
     ctx: Context<'_>,
     callback: impl FnOnce(&mut PlayerMap, &mut Vote) -> Result<T, Error>,
 ) -> Result<T, Error> {
-    let (_config, state) = ctx.data();
+    let (_config, state, _) = ctx.data();
 
     let mut state = state.write().await;
     let State {
@@ -81,7 +81,7 @@ async fn mutate_active_vote<T>(
 
 #[poise::command(prefix_command, slash_command, check = "is_storyteller")]
 pub async fn set_number_of_players(ctx: Context<'_>, number_of_players: u32) -> Result<(), Error> {
-    let (_config, state) = ctx.data();
+    let (_config, state, _) = ctx.data();
 
     let mut state = state.write().await;
     state.number_of_players = number_of_players;
@@ -101,7 +101,7 @@ pub async fn assign_player_to_cottage(
     player_id: UserId,
     channel_id: ChannelId,
 ) -> Result<(), Error> {
-    let (_config, state) = ctx.data();
+    let (_config, state, _) = ctx.data();
 
     let mut state = state.write().await;
     state
@@ -242,7 +242,7 @@ pub async fn start_vote(
     #[description = "eg. \"It will take 5 to tie, 6 to execute\""] description: String,
 ) -> Result<(), Error> {
     ctx.defer().await?;
-    let (config, state) = ctx.data();
+    let (config, state, _) = ctx.data();
 
     let state_read = state.read().await;
 
