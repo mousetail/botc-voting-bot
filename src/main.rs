@@ -146,7 +146,7 @@ async fn event_handler<'a>(
                 &new_message.content,
                 &new_message.author,
                 new_message.channel_id,
-                &new_message.thread,
+                new_message.thread.as_ref().map(|i| (i.id, &i.name)),
                 new_message
                     .attachments
                     .iter()
@@ -238,6 +238,7 @@ async fn event_handler<'a>(
                 "thread_create",
                 std::time::SystemTime::now(),
                 thread.id,
+                &thread.name,
                 &thread.thread_metadata,
             ))
             .unwrap();
