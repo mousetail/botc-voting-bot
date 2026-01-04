@@ -139,7 +139,7 @@ async fn event_handler<'a>(
         serenity::FullEvent::Message { new_message } => {
             let mut value = state.2.lock().await;
 
-            let message = serde_json::to_vec(&(
+            let mut message = serde_json::to_vec(&(
                 "new_message",
                 std::time::SystemTime::now(),
                 new_message.id,
@@ -154,6 +154,7 @@ async fn event_handler<'a>(
                     .collect::<Vec<_>>(),
             ))
             .unwrap();
+            message.push(10);
             value.write_all(&message).unwrap();
         }
         serenity::FullEvent::MessageUpdate {
@@ -164,7 +165,7 @@ async fn event_handler<'a>(
             if let Some(new_message) = new_message {
                 let mut value = state.2.lock().await;
 
-                let message = serde_json::to_vec(&(
+                let mut message = serde_json::to_vec(&(
                     "message_edit",
                     std::time::SystemTime::now(),
                     old_if_available.as_ref().map(|i| i.id),
@@ -175,6 +176,7 @@ async fn event_handler<'a>(
                     &new_message.thread,
                 ))
                 .unwrap();
+                message.push(10);
                 value.write_all(&message).unwrap();
             }
         }
@@ -185,7 +187,7 @@ async fn event_handler<'a>(
         } => {
             let mut value = state.2.lock().await;
 
-            let message = serde_json::to_vec(&(
+            let mut message = serde_json::to_vec(&(
                 "message_delete",
                 std::time::SystemTime::now(),
                 channel_id,
@@ -193,12 +195,14 @@ async fn event_handler<'a>(
                 guild_id,
             ))
             .unwrap();
+
+            message.push(10);
             value.write_all(&message).unwrap();
         }
         serenity::FullEvent::ReactionAdd { add_reaction } => {
             let mut value = state.2.lock().await;
 
-            let message = serde_json::to_vec(&(
+            let mut message = serde_json::to_vec(&(
                 "reaction_add",
                 std::time::SystemTime::now(),
                 add_reaction.channel_id,
@@ -207,12 +211,14 @@ async fn event_handler<'a>(
                 add_reaction.user_id,
             ))
             .unwrap();
+
+            message.push(10);
             value.write_all(&message).unwrap();
         }
         serenity::FullEvent::ReactionRemove { removed_reaction } => {
             let mut value = state.2.lock().await;
 
-            let message = serde_json::to_vec(&(
+            let mut message = serde_json::to_vec(&(
                 "reaction_remove",
                 std::time::SystemTime::now(),
                 removed_reaction.channel_id,
@@ -221,24 +227,28 @@ async fn event_handler<'a>(
                 removed_reaction.user_id,
             ))
             .unwrap();
+
+            message.push(10);
             value.write_all(&message).unwrap();
         }
         serenity::FullEvent::ThreadCreate { thread } => {
             let mut value = state.2.lock().await;
 
-            let message = serde_json::to_vec(&(
+            let mut message = serde_json::to_vec(&(
                 "thread_create",
                 std::time::SystemTime::now(),
                 thread.id,
                 &thread.thread_metadata,
             ))
             .unwrap();
+
+            message.push(10);
             value.write_all(&message).unwrap();
         }
         serenity::FullEvent::ThreadMemberUpdate { thread_member } => {
             let mut value = state.2.lock().await;
 
-            let message = serde_json::to_vec(&(
+            let mut message = serde_json::to_vec(&(
                 "thread_member_update",
                 std::time::SystemTime::now(),
                 thread_member.id,
@@ -246,6 +256,8 @@ async fn event_handler<'a>(
                 thread_member.inner.join_timestamp,
             ))
             .unwrap();
+
+            message.push(10);
             value.write_all(&message).unwrap();
         }
         serenity::FullEvent::InteractionCreate {
