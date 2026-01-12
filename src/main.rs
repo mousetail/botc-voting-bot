@@ -158,27 +158,25 @@ async fn event_handler<'a>(
             value.write_all(&message).unwrap();
         }
         serenity::FullEvent::MessageUpdate {
-            old_if_available,
-            new: new_message,
-            event: _,
+            old_if_available: _,
+            new: _,
+            event: ev,
         } => {
-            if let Some(new_message) = new_message {
-                let mut value = state.2.lock().await;
+            let mut value = state.2.lock().await;
 
-                let mut message = serde_json::to_vec(&(
-                    "message_edit",
-                    std::time::SystemTime::now(),
-                    old_if_available.as_ref().map(|i| i.id),
-                    new_message.id,
-                    &new_message.content,
-                    &new_message.author,
-                    new_message.channel_id,
-                    &new_message.thread,
-                ))
-                .unwrap();
-                message.push(10);
-                value.write_all(&message).unwrap();
-            }
+            let mut message = serde_json::to_vec(&(
+                "message_edit",
+                std::time::SystemTime::now(),
+                ev.id,
+                ev.id,
+                &ev.content,
+                &ev.author,
+                &ev.channel_id,
+                &ev.reactions,
+            ))
+            .unwrap();
+            message.push(10);
+            value.write_all(&message).unwrap();
         }
         serenity::FullEvent::MessageDelete {
             channel_id,
