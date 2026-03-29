@@ -85,6 +85,9 @@ pub async fn set_number_of_players(ctx: Context<'_>, number_of_players: u32) -> 
 
     let mut state = state.write().await;
     state.number_of_players = number_of_players;
+    state
+        .players
+        .retain(|i, _| u32::from(i.0) <= number_of_players);
     state.save();
     drop(state);
 
